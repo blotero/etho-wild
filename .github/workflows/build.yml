@@ -1,0 +1,172 @@
+name: Release Build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g., v0.1.0)'
+        required: false
+        default: 'dev'
+
+env:
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Priority 1: Windows x64
+          - os: windows-latest
+            triplet: x64-windows
+            name: windows-x64
+            artifact_ext: .exe
+
+          # Priority 2: Linux x86-64
+          - os: ubuntu-24.04
+            triplet: x64-linux
+            name: linux-x64
+            artifact_ext: ""
+
+          # Priority 3: macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            triplet: arm64-osx
+            name: darwin-arm64
+            artifact_ext: ""
+
+          # Priority 4: macOS x64 (Intel)
+          - os: macos-13
+            triplet: x64-osx
+            name: darwin-x64
+            artifact_ext: ""
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.name }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Export GitHub Actions cache environment variables
+      - name: Export GitHub Actions cache variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      # Install system dependencies (Linux)
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            ninja-build \
+            autoconf \
+            automake \
+            libtool \
+            libgl1-mesa-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxcb-xkb-dev \
+            libxcb-cursor-dev \
+            libxcb-keysyms1-dev \
+            libxcb-randr0-dev \
+            libxcb-render-util0-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
+            libxcb-shape0-dev \
+            libxcb-sync-dev \
+            libxcb-xfixes0-dev \
+            libxcb-xinerama0-dev \
+            libxcb-util-dev \
+            libx11-xcb-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libxext-dev \
+            libxrender-dev \
+            libatspi2.0-dev \
+            libdbus-1-dev \
+            libegl1-mesa-dev
+
+      # Install Ninja (Windows)
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja -y
+
+      # Install Ninja (macOS)
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      # Setup vcpkg
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "01f602195983451bc83e72f4214af2cbc495aa94"
+
+      # Configure and Build
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      # Package artifacts
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp build/EthoWild dist/
+          cp behaviors.json dist/
+          chmod +x dist/EthoWild
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item build/EthoWild.exe dist/
+          Copy-Item behaviors.json dist/
+          # Deploy Qt runtime DLLs
+          & "${{ github.workspace }}/vcpkg/installed/${{ matrix.triplet }}/tools/Qt6/bin/windeployqt.exe" `
+            --release `
+            --no-translations `
+            dist/EthoWild.exe
+
+      # Create zip archive
+      - name: Create archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd dist
+          zip -r ../EthoWild-${{ matrix.name }}.zip .
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/* -DestinationPath EthoWild-${{ matrix.name }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EthoWild-${{ matrix.name }}
+          path: EthoWild-${{ matrix.name }}.zip
+          retention-days: 30
+
+      # Upload to release (only when triggered by release)
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: EthoWild-${{ matrix.name }}.zip
