@@ -15,6 +15,9 @@ env:
 
 jobs:
   build-windows:
+    permissions:
+      contents: read
+      packages: write
     runs-on: windows-latest
     name: Build (windows-x64)
 
@@ -96,6 +99,9 @@ jobs:
           files: EthoWild-windows-x64.zip
 
   build-linux:
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-22.04
     name: Build (linux-x64)
 
@@ -170,6 +176,9 @@ jobs:
           files: EthoWild-linux-x64.zip
 
   build-macos-arm64:
+    permissions:
+      contents: read
+      packages: write
     runs-on: macos-14
     name: Build (darwin-arm64)
 
@@ -227,6 +236,9 @@ jobs:
           files: EthoWild-darwin-arm64.zip
 
   build-macos-x64:
+    permissions:
+      contents: read
+      packages: write
     runs-on: macos-13
     name: Build (darwin-x64)
 
