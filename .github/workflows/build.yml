@@ -30,6 +30,7 @@ jobs:
           target: desktop
           arch: win64_msvc2019_64
           cache: true
+          set-env: true
 
       - name: Install OpenCV
         shell: pwsh
@@ -57,8 +58,8 @@ jobs:
           cmake -B build -S . `
             -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="${env:Qt6_DIR}" `
-            -DOpenCV_DIR="${env:OpenCV_DIR}"
+            -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}" `
+            -DOpenCV_DIR="${{ env.OpenCV_DIR }}"
 
       - name: Build
         run: cmake --build build --config Release
@@ -70,7 +71,9 @@ jobs:
           Copy-Item build/EthoWild.exe dist/
           Copy-Item behaviors.json dist/
           # Deploy Qt runtime DLLs
-          & "$env:Qt6_DIR/../../../bin/windeployqt.exe" --release --no-translations dist/EthoWild.exe
+          $windeployqt = "${{ env.QT_ROOT_DIR }}/bin/windeployqt.exe"
+          Write-Host "Using windeployqt at: $windeployqt"
+          & $windeployqt --release --no-translations dist/EthoWild.exe
           # Copy OpenCV DLLs
           Copy-Item "${{ github.workspace }}/opencv/build/x64/vc16/bin/*.dll" dist/ -ErrorAction SilentlyContinue
 
@@ -93,7 +96,7 @@ jobs:
           files: EthoWild-windows-x64.zip
 
   build-linux:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     name: Build (linux-x64)
 
     steps:
@@ -106,8 +109,9 @@ jobs:
           version: ${{ env.QT_VERSION }}
           host: linux
           target: desktop
-          arch: gcc_64
+          arch: linux_gcc_64
           cache: true
+          set-env: true
 
       - name: Install dependencies
         run: |
@@ -135,7 +139,7 @@ jobs:
           cmake -B build -S . \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}"
 
       - name: Build
         run: cmake --build build --config Release
@@ -181,6 +185,7 @@ jobs:
           target: desktop
           arch: clang_64
           cache: true
+          set-env: true
 
       - name: Install dependencies
         run: |
@@ -191,7 +196,7 @@ jobs:
           cmake -B build -S . \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}"
 
       - name: Build
         run: cmake --build build --config Release
@@ -237,17 +242,26 @@ jobs:
           target: desktop
           arch: clang_64
           cache: true
+          set-env: true
 
       - name: Install dependencies
         run: |
-          brew install ninja opencv
+          # Unlink Homebrew's Qt to avoid conflicts with our installed Qt
+          brew unlink qt@5 2>/dev/null || true
+          brew unlink qt@6 2>/dev/null || true
+          brew unlink qt 2>/dev/null || true
+          # Install opencv without dependencies pulling in Qt
+          brew install ninja
+          brew install --ignore-dependencies opencv
 
       - name: Configure CMake
         run: |
+          # Ensure our Qt is found first, not Homebrew's
           cmake -B build -S . \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}" \
+            -DCMAKE_IGNORE_PREFIX_PATH="/usr/local;/opt/homebrew"
 
       - name: Build
         run: cmake --build build --config Release
