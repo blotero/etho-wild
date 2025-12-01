@@ -11,7 +11,6 @@ on:
         default: 'dev'
 
 env:
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   QT_VERSION: "6.7.2"
 
 jobs:
@@ -23,13 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Export GitHub Actions cache variables
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -39,6 +31,18 @@ jobs:
           arch: win64_msvc2019_64
           cache: true
 
+      - name: Install OpenCV
+        shell: pwsh
+        run: |
+          # Download pre-built OpenCV
+          $opencvVersion = "4.10.0"
+          $opencvUrl = "https://github.com/opencv/opencv/releases/download/$opencvVersion/opencv-$opencvVersion-windows.exe"
+          Invoke-WebRequest -Uri $opencvUrl -OutFile opencv-installer.exe
+          # Extract (it's a self-extracting archive)
+          Start-Process -FilePath .\opencv-installer.exe -ArgumentList "-o`"${{ github.workspace }}`" -y" -Wait
+          # Set environment variable for CMake
+          echo "OpenCV_DIR=${{ github.workspace }}/opencv/build" >> $env:GITHUB_ENV
+
       - name: Install Ninja
         run: choco install ninja -y
 
@@ -47,15 +51,6 @@ jobs:
         with:
           arch: x64
 
-      - name: Setup vcpkg (OpenCV only)
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: "01f602195983451bc83e72f4214af2cbc495aa94"
-
-      - name: Install OpenCV via vcpkg
-        run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install opencv4:x64-windows
-
       - name: Configure CMake
         shell: pwsh
         run: |
@@ -63,8 +58,7 @@ jobs:
             -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="${env:Qt6_DIR}" `
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows
+            -DOpenCV_DIR="${env:OpenCV_DIR}"
 
       - name: Build
         run: cmake --build build --config Release
@@ -78,7 +72,7 @@ jobs:
           # Deploy Qt runtime DLLs
           & "$env:Qt6_DIR/../../../bin/windeployqt.exe" --release --no-translations dist/EthoWild.exe
           # Copy OpenCV DLLs
-          Copy-Item "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/*.dll" dist/ -ErrorAction SilentlyContinue
+          Copy-Item "${{ github.workspace }}/opencv/build/x64/vc16/bin/*.dll" dist/ -ErrorAction SilentlyContinue
 
       - name: Create archive
         shell: pwsh
@@ -98,58 +92,33 @@ jobs:
         with:
           files: EthoWild-windows-x64.zip
 
-  build-unix:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linux x86-64
-          - os: ubuntu-24.04
-            triplet: x64-linux
-            name: linux-x64
-
-          # macOS ARM64 (Apple Silicon)
-          - os: macos-14
-            triplet: arm64-osx
-            name: darwin-arm64
-
-          # macOS x64 (Intel)
-          - os: macos-13
-            triplet: x64-osx
-            name: darwin-x64
-
-    runs-on: ${{ matrix.os }}
-    name: Build (${{ matrix.name }})
+  build-linux:
+    runs-on: ubuntu-24.04
+    name: Build (linux-x64)
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Export GitHub Actions cache variables
-        uses: actions/github-script@v7
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          cache: true
 
-      # Install system dependencies (Linux)
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            autoconf \
-            automake \
             build-essential \
-            libatspi2.0-dev \
-            libdbus-1-dev \
-            libegl1-mesa-dev \
-            libfontconfig1-dev \
-            libfreetype6-dev \
+            ninja-build \
+            libopencv-dev \
             libgl1-mesa-dev \
-            libltdl-dev \
-            libtool \
-            libx11-xcb-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
             libxcb-cursor-dev \
             libxcb-icccm4-dev \
             libxcb-image0-dev \
@@ -157,41 +126,16 @@ jobs:
             libxcb-randr0-dev \
             libxcb-render-util0-dev \
             libxcb-shape0-dev \
-            libxcb-sync-dev \
-            libxcb-util-dev \
             libxcb-xfixes0-dev \
             libxcb-xinerama0-dev \
-            libxcb-xkb-dev \
-            libxext-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            libxrender-dev \
-            m4 \
-            ninja-build \
-            pkg-config
-
-      # Install Ninja (macOS)
-      - name: Install Ninja (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ninja
-
-      # Setup vcpkg
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: "01f602195983451bc83e72f4214af2cbc495aa94"
-          runVcpkgInstall: true
-          vcpkgJsonGlob: "vcpkg.json"
-        env:
-          VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+            libxcb-xkb-dev
 
       - name: Configure CMake
         run: |
           cmake -B build -S . \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
+            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
 
       - name: Build
         run: cmake --build build --config Release
@@ -206,17 +150,129 @@ jobs:
       - name: Create archive
         run: |
           cd dist
-          zip -r ../EthoWild-${{ matrix.name }}.zip .
+          zip -r ../EthoWild-linux-x64.zip .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: EthoWild-${{ matrix.name }}
-          path: EthoWild-${{ matrix.name }}.zip
+          name: EthoWild-linux-x64
+          path: EthoWild-linux-x64.zip
           retention-days: 30
 
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: EthoWild-${{ matrix.name }}.zip
+          files: EthoWild-linux-x64.zip
+
+  build-macos-arm64:
+    runs-on: macos-14
+    name: Build (darwin-arm64)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          brew install ninja opencv
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp build/EthoWild dist/
+          cp behaviors.json dist/
+          chmod +x dist/EthoWild
+
+      - name: Create archive
+        run: |
+          cd dist
+          zip -r ../EthoWild-darwin-arm64.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EthoWild-darwin-arm64
+          path: EthoWild-darwin-arm64.zip
+          retention-days: 30
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: EthoWild-darwin-arm64.zip
+
+  build-macos-x64:
+    runs-on: macos-13
+    name: Build (darwin-x64)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          brew install ninja opencv
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${Qt6_DIR}"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp build/EthoWild dist/
+          cp behaviors.json dist/
+          chmod +x dist/EthoWild
+
+      - name: Create archive
+        run: |
+          cd dist
+          zip -r ../EthoWild-darwin-x64.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EthoWild-darwin-x64
+          path: EthoWild-darwin-x64.zip
+          retention-days: 30
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: EthoWild-darwin-x64.zip
