@@ -64,35 +64,37 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            pkg-config \
-            ninja-build \
             autoconf \
             automake \
-            libtool \
+            build-essential \
+            libatspi2.0-dev \
+            libdbus-1-dev \
+            libegl1-mesa-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
             libgl1-mesa-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            libxcb-xkb-dev \
+            libltdl-dev \
+            libtool \
+            libx11-xcb-dev \
             libxcb-cursor-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
             libxcb-keysyms1-dev \
             libxcb-randr0-dev \
             libxcb-render-util0-dev \
-            libxcb-icccm4-dev \
-            libxcb-image0-dev \
             libxcb-shape0-dev \
             libxcb-sync-dev \
+            libxcb-util-dev \
             libxcb-xfixes0-dev \
             libxcb-xinerama0-dev \
-            libxcb-util-dev \
-            libx11-xcb-dev \
-            libfontconfig1-dev \
-            libfreetype6-dev \
+            libxcb-xkb-dev \
             libxext-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
             libxrender-dev \
-            libatspi2.0-dev \
-            libdbus-1-dev \
-            libegl1-mesa-dev
+            m4 \
+            ninja-build \
+            pkg-config
 
       # Install Ninja (Windows)
       - name: Install Ninja (Windows)
@@ -109,14 +111,30 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: "01f602195983451bc83e72f4214af2cbc495aa94"
+          runVcpkgInstall: true
+          vcpkgJsonGlob: "vcpkg.json"
+        env:
+          VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
 
-      # Configure and Build
-      - name: Configure CMake
+      # Configure and Build (Unix)
+      - name: Configure CMake (Unix)
+        if: runner.os != 'Windows'
         run: |
           cmake -B build -S . \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
+
+      # Configure and Build (Windows)
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake -B build -S . `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
 
       - name: Build
@@ -138,11 +156,13 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist
           Copy-Item build/EthoWild.exe dist/
           Copy-Item behaviors.json dist/
-          # Deploy Qt runtime DLLs
-          & "${{ github.workspace }}/vcpkg/installed/${{ matrix.triplet }}/tools/Qt6/bin/windeployqt.exe" `
-            --release `
-            --no-translations `
-            dist/EthoWild.exe
+          # Deploy Qt runtime DLLs (check both possible vcpkg install locations)
+          $windeployqt = Get-ChildItem -Path "${{ github.workspace }}" -Recurse -Filter "windeployqt.exe" | Select-Object -First 1
+          if ($windeployqt) {
+            & $windeployqt.FullName --release --no-translations dist/EthoWild.exe
+          } else {
+            Write-Warning "windeployqt.exe not found, skipping Qt deployment"
+          }
 
       # Create zip archive
       - name: Create archive (Unix)
