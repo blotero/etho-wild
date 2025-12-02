@@ -38,7 +38,7 @@ EthoWild supports two types of behaviors:
 **Events** are instantaneous behaviors that occur at a single point in time.
 
 - Recorded with a single double-click
-- Have only a start time (no duration)
+- Have only a start time (no duration or endtime)
 - Examples: breathing, diving, a single contact
 
 ```json
