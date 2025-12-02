@@ -2,7 +2,7 @@
 
 ## Download
 
-Pre-built binaries are available for all major platforms. Download the latest release from the [GitHub Releases](https://github.com/YOUR_USERNAME/etho-wild/releases) page.
+Pre-built binaries are available for all major platforms. Download the latest release from the [GitHub Releases](https://github.com/blotero/etho-wild/releases) page.
 
 | Platform | Architecture | Download |
 |----------|--------------|----------|
@@ -47,7 +47,7 @@ If you prefer to build EthoWild yourself, follow these instructions.
     export VCPKG_ROOT=$(pwd)
     
     # Clone EthoWild
-    git clone https://github.com/YOUR_USERNAME/etho-wild.git
+    git clone https://github.com/blotero/etho-wild.git
     cd etho-wild
     
     # Install dependencies
@@ -72,7 +72,7 @@ If you prefer to build EthoWild yourself, follow these instructions.
     $env:VCPKG_ROOT = (Get-Location).Path
     
     # Clone EthoWild
-    git clone https://github.com/YOUR_USERNAME/etho-wild.git
+    git clone https://github.com/blotero/etho-wild.git
     cd etho-wild
     
     # Install dependencies
@@ -102,7 +102,7 @@ If you prefer to use your system's package manager:
         qt6-base-dev \
         libopencv-dev
     
-    git clone https://github.com/YOUR_USERNAME/etho-wild.git
+    git clone https://github.com/blotero/etho-wild.git
     cd etho-wild
     
     cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -114,7 +114,7 @@ If you prefer to use your system's package manager:
     ```bash
     sudo pacman -S base-devel cmake ninja qt6-base opencv
     
-    git clone https://github.com/YOUR_USERNAME/etho-wild.git
+    git clone https://github.com/blotero/etho-wild.git
     cd etho-wild
     
     cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -126,7 +126,7 @@ If you prefer to use your system's package manager:
     ```bash
     brew install cmake ninja qt@6 opencv
     
-    git clone https://github.com/YOUR_USERNAME/etho-wild.git
+    git clone https://github.com/blotero/etho-wild.git
     cd etho-wild
     
     cmake -B build -S . -G Ninja \
