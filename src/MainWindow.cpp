@@ -1,8 +1,10 @@
 #include "MainWindow.hpp"
 #include "Config.hpp"
 #include "CsvExporter.hpp"
+#include "ThemeManager.hpp"
 
 #include <QMenuBar>
+#include <QActionGroup>
 #include <QMenu>
 #include <QAction>
 #include <QTime>
@@ -155,6 +157,36 @@ void MainWindow::setupDockWidgets() {
     viewMenu->addAction(m_behaviorDock->toggleViewAction());
     viewMenu->addAction(m_controlsDock->toggleViewAction());
     viewMenu->addAction(m_recordsDock->toggleViewAction());
+    
+    viewMenu->addSeparator();
+    
+    // Theme submenu
+    QMenu* themeMenu = viewMenu->addMenu("Theme");
+    QActionGroup* themeGroup = new QActionGroup(this);
+    themeGroup->setExclusive(true);
+    
+    QAction* lightAction = themeMenu->addAction("Light");
+    lightAction->setCheckable(true);
+    themeGroup->addAction(lightAction);
+    
+    QAction* darkAction = themeMenu->addAction("Dark");
+    darkAction->setCheckable(true);
+    themeGroup->addAction(darkAction);
+    
+    // Set current theme state
+    if (ThemeManager::instance().currentTheme() == ThemeManager::Theme::Light) {
+        lightAction->setChecked(true);
+    } else {
+        darkAction->setChecked(true);
+    }
+    
+    // Connect theme actions
+    connect(lightAction, &QAction::triggered, this, []() {
+        ThemeManager::instance().setTheme(ThemeManager::Theme::Light);
+    });
+    connect(darkAction, &QAction::triggered, this, []() {
+        ThemeManager::instance().setTheme(ThemeManager::Theme::Dark);
+    });
 }
 
 void MainWindow::setupBehaviorTree() {
@@ -253,7 +285,8 @@ void MainWindow::setupControlsDock() {
     
     // State feedback
     m_stateFeedbackLabel = new QLabel();
-    m_stateFeedbackLabel->setStyleSheet("QLabel { color: green; font-weight: bold; }");
+    m_stateFeedbackLabel->setObjectName("stateFeedbackLabel");
+    m_stateFeedbackLabel->setProperty("class", "accent");
     layout->addRow("", m_stateFeedbackLabel);
     
     m_controlsDock->setWidget(container);
@@ -624,8 +657,10 @@ void MainWindow::updateRecordsDisplay() {
         m_recordsTable->setItem(i, 2, typeItem);
         
         // Delete button
-        QPushButton* deleteBtn = new QPushButton("🗑");
-        deleteBtn->setFixedWidth(30);
+        QPushButton* deleteBtn = new QPushButton("✕");
+        deleteBtn->setObjectName("deleteButton");
+        deleteBtn->setFixedSize(28, 28);
+        deleteBtn->setToolTip("Delete record");
         connect(deleteBtn, &QPushButton::clicked, this, [this, i]() {
             deleteRecord(i);
         });

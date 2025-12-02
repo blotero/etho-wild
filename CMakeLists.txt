@@ -21,6 +21,7 @@ set(SOURCES
     src/VideoWorker.cpp
     src/Config.cpp
     src/CsvExporter.cpp
+    src/ThemeManager.cpp
 )
 
 # Headers (for MOC)
@@ -30,6 +31,7 @@ set(HEADERS
     src/Config.hpp
     src/CsvExporter.hpp
     src/BehaviorRecord.hpp
+    src/ThemeManager.hpp
 )
 
 add_executable(EthoWild ${SOURCES} ${HEADERS})
