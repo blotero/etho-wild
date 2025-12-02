@@ -48,7 +48,7 @@ cmake --build build
 
 cp behaviors.json build/
 ./build/EthoWild
-```i
+```
 
 See the [Installation docs](https://blotero.github.io/etho-wild/installation/) for detailed instructions including vcpkg and system package options.
 
