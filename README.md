@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/etho-wild-logo.png" alt="EthoWild Logo" width="300">
+</p>
+
 # EthoWild
 
 A desktop application for labeling animal behaviors in video recordings. Built with C++ and Qt6, EthoWild provides a fast, intuitive interface for researchers studying wildlife behavior.
